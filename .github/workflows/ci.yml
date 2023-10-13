@@ -60,7 +60,7 @@ jobs:
           make -j1 V=s package/index
       - name: Generate artifact name
         id: generate-name
-        run: echo "artifact-name=${{ github.event.repository.name }}.${{ github.sha }}.ipk" >> $GITHUB_OUTPUT
+        run: echo "artifact-name=${{ github.event.repository.name }}.${{ github.sha }}" >> $GITHUB_OUTPUT
       - name: Prepare artifact
         run: |
           mkdir package-output
@@ -68,4 +68,4 @@ jobs:
       - uses: actions/upload-artifact@v3
         with:
           name: ${{ steps.generate-name.outputs.artifact-name }}
-          path: package-output
+          path: package-output/
