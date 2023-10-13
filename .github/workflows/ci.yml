@@ -58,12 +58,11 @@ jobs:
           cd "sdk/${SDK_FILENAME%.tar.xz}"
           make -j$(nproc) V=s package/${{ env.owrt-package }}/compile
           make -j1 V=s package/index
-      - name: Prepare artifact
+      - name: Generate artifact name
+        id: generate-name
         run: |
-          mkdir -p OpenWrt_Packages
-          rsync -av sdk/"${SDK_FILENAME%.tar.xz}"/bin/packages/mips_24kc/base OpenWrt_Packages
-          tar cf OpenWrt_23-05-00_mips_24kc.tar OpenWrt_Packages
+          echo "::set-output name=artifact::${{ github.event.repository.name }}.${{ github.sha }}.zip"
       - uses: actions/upload-artifact@v3
         with:
-          name: OpenWrt_23-05-00_mips_24kc
-          path: OpenWrt_23-05-00_mips_24kc.tar
+          name: ${{ steps.generate-name.outputs.artifact }}
+          path: "sdk/${SDK_FILENAME%.tar.xz}/bin/packages/mips_24kc/base/${{ env.owrt-package }}*.ipk"
