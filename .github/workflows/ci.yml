@@ -13,11 +13,11 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  git-author-name: Doug Freed
-  git-author-email: dwfreed@mtu.edu
-  owrt-package: helloworld
-  repo-owner: dwfreed
-  repo-name: openwrt-vlmcsd
+  git-author-name: SRLabs
+  git-author-email: info@srlabs.de
+  owrt-package: blue-merle
+  repo-owner: srlabs
+  repo-name: blue-merle
   usign-key-name: Test
 
 jobs:
