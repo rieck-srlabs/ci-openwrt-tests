@@ -63,8 +63,9 @@ jobs:
         run: echo "artifact-name=${{ github.event.repository.name }}.${{ github.sha }}.ipk" >> $GITHUB_OUTPUT
       - name: Prepare artifact
         run: |
-          cp sdk/"${SDK_FILENAME%.tar.xz}"/bin/packages/mips_24kc/base/"${{ env.owrt-package }}"*.ipk generated_package.ipk
+          mkdir package-output
+          rsync -av sdk/"${SDK_FILENAME%.tar.xz}"/bin/packages/mips_24kc/base/"${{ env.owrt-package }}"*.ipk package-output/
       - uses: actions/upload-artifact@v3
         with:
           name: ${{ steps.generate-name.outputs.artifact-name }}
-          path: generated_package.ipk
+          path: package-output
