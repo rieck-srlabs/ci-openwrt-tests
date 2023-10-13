@@ -1,89 +1,150 @@
-##############################################
-# OpenWrt Makefile for helloworld program
-#
-#
-# Most of the variables used here are defined in
-# the include directives below. We just need to 
-# specify a basic description of the package, 
-# where to build our program, where to find 
-# the source files, and where to install the 
-# compiled program on the router. 
-# 
-# Be very careful of spacing in this file.
-# Indents should be tabs, not spaces, and 
-# there should be no trailing whitespace in
-# lines that are not commented.
-# 
-##############################################
-
 include $(TOPDIR)/rules.mk
 
-# Name and release number of this package
-PKG_NAME:=helloworld
-PKG_RELEASE:=1
+PKG_NAME:=blue-merle
+PKG_VERSION:=1.1.0
+PKG_RELEASE:=$(AUTORELEASE)
 
-
-# This specifies the directory where we're going to build the program.  
-# The root build directory, $(BUILD_DIR), is by default the build_mipsel 
-# directory in your OpenWrt SDK directory
-PKG_BUILD_DIR := $(BUILD_DIR)/$(PKG_NAME)
-
+PKG_MAINTAINER:=Matthias <matthias@srlabs.de>
+PKG_LICENSE:=BSD-3-Clause
 
 include $(INCLUDE_DIR)/package.mk
 
-
-
-# Specify package information for this program. 
-# The variables defined here should be self explanatory.
-# If you are running Kamikaze, delete the DESCRIPTION 
-# variable below and uncomment the Kamikaze define
-# directive for the description below
-define Package/helloworld
+define Package/blue-merle
 	SECTION:=utils
 	CATEGORY:=Utilities
-	TITLE:=Helloworld -- prints a snarky message
+	DEPENDS:=gl-ui gl-e750-mcu +bash +coreutils-shred +python3 +python3-pyserial +patch
+	TITLE:=Anonymity Enhancements for GL-E750 Mudi
 endef
 
-
-# Uncomment portion below for Kamikaze and delete DESCRIPTION variable above
-define Package/helloworld/description
-	If you can't figure out what this program does, you're probably
-	brain-dead and need immediate medical attention.
+define Package/blue-merle/description
+	The blue-merle package enhances anonymity and reduces forensic traceability of the GL-E750 Mudi 4G mobile wi-fi router
 endef
 
-
-
-# Specify what needs to be done to prepare for building the package.
-# In our case, we need to copy the source files to the build directory.
-# This is NOT the default.  The default uses the PKG_SOURCE_URL and the
-# PKG_SOURCE which is not defined here to download the source from the web.
-# In order to just build a simple program that we have just written, it is
-# much easier to do it this way.
-define Build/Prepare
-	mkdir -p $(PKG_BUILD_DIR)
-	$(CP) ./src/* $(PKG_BUILD_DIR)/
+define Build/Configure
 endef
 
-
-# We do not need to define Build/Configure or Build/Compile directives
-# The defaults are appropriate for compiling a simple program such as this one
-
-
-# Specify where and how to install the program. Since we only have one file, 
-# the helloworld executable, install it by copying it to the /bin directory on
-# the router. The $(1) variable represents the root directory on the router running 
-# OpenWrt. The $(INSTALL_DIR) variable contains a command to prepare the install 
-# directory if it does not already exist.  Likewise $(INSTALL_BIN) contains the 
-# command to copy the binary file from its current location (in our case the build
-# directory) to the install directory.
-define Package/helloworld/install
-	$(INSTALL_DIR) $(1)/bin
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/helloworld $(1)/bin/
+define Build/Compile
 endef
 
+define Package/blue-merle/install
+	$(CP) ./files/* $(1)/
+	$(INSTALL_BIN) ./files/etc/init.d/* $(1)/etc/init.d/
+	$(INSTALL_BIN) ./files/lib/blue-merle/mac-wipe.sh $(1)/lib/blue-merle/mac-wipe.sh
+	$(INSTALL_BIN) ./files/usr/bin/blue-merle $(1)/usr/bin/blue-merle
+endef
 
-# This line executes the necessary commands to compile our program.
-# The above define directives specify all the information needed, but this
-# line calls BuildPackage which in turn actually uses this information to
-# build a package.
-$(eval $(call BuildPackage,helloworld))
+define Package/blue-merle/preinst
+	#!/bin/sh
+	[ -n "$${IPKG_INSTROOT}" ] && exit 0	# if run within buildroot exit
+	
+	ABORT_GLVERSION () {
+		echo
+		if [ -f "/tmp/sysinfo/model" ] && [ -f "/etc/glversion" ]; then
+			echo "You have a `cat /tmp/sysinfo/model`, running firmware version `cat /etc/glversion`."
+		fi
+		echo "blue-merle has only been tested with GL-E750 Mudi Version 3.215."
+		echo "The device or firmware version you are using have not been verified to work with blue-merle."
+		echo -n "Would you like to continue on your own risk? (y/N): "
+		read answer
+		case $$answer in
+				y*) answer=0;;
+				y*) answer=0;;
+				*) answer=1;;
+		esac
+		if [[ "$$answer" -eq 0 ]]; then
+			exit 0
+		else
+			exit 1
+		fi
+	}
+
+	UPDATE_MCU() {
+		echo "6e6b86e3ad7fec0d5e426eb9a41c51c6f0d6b68a4d341ec553edeeade3e4b470  /tmp/e750-mcu-V1.0.7.bin" > /tmp/e750-mcu.bin.sha256
+		wget -O /tmp/e750-mcu-V1.0.7.bin https://github.com/gl-inet/GL-E750-MCU-instruction/blob/master/e750-mcu-V1.0.7-56a1cad7f0eb8318ebe3c3c46a4cf3ff.bin?raw=true
+		if sha256sum -cs /tmp/e750-mcu.bin.sha256; then
+			ubus call service delete '{"name":"e750_mcu"}'
+			mcu_update /tmp/e750-mcu-V1.0.7.bin
+		else
+			echo "Failed to update MCU, verification of the binary failed."
+			echo "Your device needs to be connected to the Internet in order to download the MCU binary."
+			exit 1
+		fi
+	}
+
+	CHECK_MCUVERSION() {
+		function version { echo "$$@" | cut -d' ' -f2 | awk -F. '{ printf("%d%03d%03d%03d\n", $$1,$$2,$$3,$$4); }'; }
+		mcu_version=`echo \{\"version\": \"1\"} > /dev/ttyS0; sleep 0.1; cat /dev/ttyS0|tr -d '\n'`
+		if [ $$(version "$$mcu_version") -ge $$(version "V 1.0.7") ]; then
+			return 0
+		else
+			echo
+			echo "Your MCU version has not been verified to work with blue-merle."
+						echo "Automatic shutdown may not work."
+						echo "The install script can initiate an update of the MCU."
+						echo "The device will reboot and, after reboot, you need to run opkg install blue-merle again."
+						echo -n "Would you like to update your MCU? (y/N): "
+						read answer
+						case $$answer in
+								Y*) answer=0;;
+								y*) answer=0;;
+								*) answer=1;;
+						esac
+						if [[ "$$answer" -eq 0 ]]; then
+								UPDATE_MCU
+						fi
+				fi
+		}
+
+	if grep -q "GL.iNet GL-E750" /proc/cpuinfo; then
+	    GL_VERSION=$$(cat /etc/glversion)
+	    case $$GL_VERSION in
+	        4.*)
+	            echo Version $$GL_VERSION is not supported
+	            exit 1
+	            ;;
+	        3.215)
+	            echo Version $$GL_VERSION is supported
+	            CHECK_MCUVERSION
+	            exit 0
+	            ;;
+	        3.*)
+	            echo Version $$GL_VERSION is *probably* supported
+	            ABORT_GLVERSION
+	            ;;
+	        *)
+	            echo Unknown version $$GL_VERSION
+	            ABORT_GLVERSION
+	            ;;
+        esac
+        CHECK_MCUVERSION
+	else
+		ABORT_GLVERSION
+	fi
+endef
+
+define Package/blue-merle/postinst
+	#!/bin/sh
+
+	patch -b /www/src/temple/settings/index.js /lib/blue-merle/patches/index.js.patch
+	patch -b /www/src/temple/settings/index.html /lib/blue-merle/patches/index.html.patch
+	patch -b /usr/bin/switchaction /lib/blue-merle/patches/switchaction.patch
+	patch -b /usr/bin/switch_queue /lib/blue-merle/patches/switch_queue.patch
+
+	uci set glconfig.switch_button='service'
+	uci set glconfig.switch_button.enable='1'
+	uci set glconfig.switch_button.function='sim'
+	uci commit glconfig
+endef
+
+define Package/blue-merle/postrm
+	#!/bin/sh
+
+	mv /www/src/temple/settings/index.js.orig /www/src/temple/settings/index.js
+	mv /www/src/temple/settings/index.html.orig /www/src/temple/settings/index.html
+	mv /usr/bin/switchaction.orig /usr/bin/switchaction
+	mv /usr/bin/switch_queue.orig /usr/bin/switch_queue
+
+	rm -f /tmp/sim_change_start
+	rm -f /tmp/sim_change_switch
+endef
+$(eval $(call BuildPackage,$(PKG_NAME)))
