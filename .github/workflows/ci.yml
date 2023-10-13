@@ -60,9 +60,11 @@ jobs:
           make -j1 V=s package/index
       - name: Generate artifact name
         id: generate-name
+        run: echo "artifact-name=${{ github.event.repository.name }}.${{ github.sha }}.ipk" >> $GITHUB_OUTPUT
+      - name: Prepare artifact
         run: |
-          echo "::set-output name=artifact::${{ github.event.repository.name }}.${{ github.sha }}.zip"
+          cp sdk/"${SDK_FILENAME%.tar.xz}"/bin/packages/mips_24kc/base/"${owrt-package}"*.ipk generated_package.ipk
       - uses: actions/upload-artifact@v3
         with:
-          name: ${{ steps.generate-name.outputs.artifact }}
-          path: "sdk/${SDK_FILENAME%.tar.xz}/bin/packages/mips_24kc/base/${{ env.owrt-package }}*.ipk"
+          name: ${{ steps.generate-name.outputs.artifact-name }}
+          path: generated_package.ipk
