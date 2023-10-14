@@ -2,8 +2,6 @@ name: CI
 
 on:
   push:
-    branches:
-      main
     paths-ignore:
       - 'README.md'
   workflow_dispatch:
@@ -12,13 +10,6 @@ concurrency:
   group: CI
   cancel-in-progress: false
 
-env:
-  git-author-name: SRLabs
-  git-author-email: info@srlabs.de
-  owrt-package: blue-merle
-  repo-owner: srlabs
-  repo-name: blue-merle
-
 jobs:
   build-packages:
     name: Build Packages
@@ -26,6 +17,7 @@ jobs:
     strategy:
       fail-fast: false
     env:
+      owrt-package: blue-merle
       SDK_URL: "https://downloads.openwrt.org/releases/23.05.0/targets/ath79/nand/openwrt-sdk-23.05.0-ath79-nand_gcc-12.3.0_musl.Linux-x86_64.tar.xz"
       SDK_FILENAME: "openwrt-sdk-23.05.0-ath79-nand_gcc-12.3.0_musl.Linux-x86_64.tar.xz"
     steps:
@@ -60,7 +52,7 @@ jobs:
           make -j1 V=s package/index
       - name: Generate artifact name
         id: generate-name
-        run: echo "artifact-name=${{ github.event.repository.name }}.${{ github.sha }}" >> $GITHUB_OUTPUT
+        run: echo "artifact-name=${{ github.event.repository.name }}-${{ github.ref_name }}-${{ github.sha }}" >> $GITHUB_OUTPUT
       - name: Prepare artifact
         run: |
           mkdir package-output
